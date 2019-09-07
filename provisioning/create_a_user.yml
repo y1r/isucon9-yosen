@@ -1,0 +1,23 @@
+  - group:
+      name:  '{{ id }}'
+      state: present
+
+      # For centos
+      #  - name: create user
+      #user:
+      #name: '{{ id }}'
+      #shell: /bin/bash
+      #group: '{{ id }}'
+      #groups: isucon, wheel
+
+  - name: create user
+    user:
+      name: '{{ id }}'
+      shell: /bin/bash
+      group: '{{ id }}'
+      groups: isucon, root, adm
+
+  - name: add key
+    authorized_key:
+      user: '{{ id }}'
+      key: '{{ ssh_key }}'

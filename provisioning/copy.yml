@@ -1,0 +1,21 @@
+  - name: check backup directory
+    stat:
+        path: /home/isucon/.DO_NOT_REMOVE_THIS_FILE_EVERYTHING_COPIED
+    register: copied
+    become: yes
+    become_user: isucon
+
+  - name: copy everything
+    shell: |
+        cp -pr ~isucon/.backup/* ~{{ item }}
+        chown -R {{ item }}.{{ item }} ~{{ item }}/*
+        mkdir -p ~{{ item }}/.ssh
+        cp -pr ~isucon/.ssh/* ~{{ item }}/.ssh
+        chown -R {{ item }}.{{ item }} ~{{ item }}/.ssh
+        touch ~isucon/.DO_NOT_REMOVE_THIS_FILE_EVERYTHING_COPIED
+    become: yes
+    with_items:
+        - y1r
+        - ark
+        - akky
+    when: not copied.stat.exists
