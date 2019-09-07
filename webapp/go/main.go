@@ -993,6 +993,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 					FROM `+"`items`"+`
 					WHERE
 						`+"`buyer_id`"+` > 0
+						AND
 						(
 							`+"`seller_id`"+` = ?
 							OR
@@ -1137,6 +1138,8 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 						buyer_id
 					FROM `+"`items`"+`
 					WHERE
+						`+"`buyer_id`"+` > 0
+						AND
 						(
 							`+"`seller_id`"+` = ?
 							OR `+"`buyer_id`"+` = ?
