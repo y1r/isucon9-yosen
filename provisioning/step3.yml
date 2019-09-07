@@ -3,9 +3,9 @@
 
   tasks:
   - name: clone repository
-    shell: git clone git@github.com:y1r/isucon6-yosen.git
+    shell: git clone git@github.com:y1r/isucon9-yosen.git
     args:
         chdir: ~isucon
-        creates: ~isucon/isucon6-yosen
+        creates: ~isucon/isucon9-yosen
     become: yes
     become_user: isucon
