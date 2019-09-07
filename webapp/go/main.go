@@ -2623,6 +2623,16 @@ func postLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cost, _ := bcrypt.Cost(u.HashedPassword)
+	if cost > bcrypt.MinCost {
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
+		dbx.Exec(
+			"UPDATE `users` SET `hashed_password` = ? where `id` = ?",
+			hashedPassword,
+			u.ID,
+		)
+	}
+
 	session := getSession(r)
 
 	session.Values["user_id"] = u.ID
