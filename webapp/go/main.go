@@ -667,9 +667,6 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 			`,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
-			time.Unix(createdAt, 0),
-			time.Unix(createdAt, 0),
-			itemID,
 			ItemsPerPage+1,
 		)
 		if err != nil {
