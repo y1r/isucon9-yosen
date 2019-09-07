@@ -1156,9 +1156,6 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			ItemStatusSoldOut,
 			ItemStatusCancel,
 			ItemStatusStop,
-			time.Unix(createdAt, 0),
-			time.Unix(createdAt, 0),
-			itemID,
 			TransactionsPerPage+1,
 		)
 		if err != nil {
