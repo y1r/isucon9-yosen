@@ -415,8 +415,7 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
 	category = categoriesCache[categoryID];
 	if category.ParentID != 0 {
-		parentCategory, _ := getCategoryByID(q, category.ParentID)
-		category.ParentCategoryName = parentCategory.CategoryName
+		category.ParentCategoryName = categoriesCache[category.ParentID].CategoryName
 	}
 	return category, nil
 }
