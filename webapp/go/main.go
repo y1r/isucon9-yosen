@@ -70,7 +70,7 @@ var (
 	shipment_service_url   string
 )
 
-type _Config struct {
+type Config struct {
 	Name string `json:"name" db:"name"`
 	Val  string `json:"val" db:"val"`
 }
@@ -328,6 +328,9 @@ func main() {
 	}
 	defer dbx.Close()
 
+	payment_service_url = ""
+	shipment_service_url = ""
+
 	// カテゴリを配列にキャッシュする
 	CacheCategories()
 
@@ -429,8 +432,36 @@ func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err err
 
 func getConfigByName(name string) (string, error) {
 	if name[0] == 'p' {
+		if payment_service_url == "" {
+			config := Config{}
+			for {
+				err := dbx.Get(&config, "SELECT * FROM `configs` WHERE `name` = ?", name)
+				if err == sql.ErrNoRows {
+					continue
+				}
+				if err != nil {
+					continue
+				}
+				break
+			}
+			payment_service_url = config.Val
+		}
 		return payment_service_url, nil
 	} else {
+		if shipment_service_url == "" {
+			config := Config{}
+			for {
+				err := dbx.Get(&config, "SELECT * FROM `configs` WHERE `name` = ?", name)
+				if err == sql.ErrNoRows {
+					continue
+				}
+				if err != nil {
+					continue
+				}
+				break
+			}
+			shipment_service_url = config.Val
+		}
 		return shipment_service_url, nil
 	}
 }
