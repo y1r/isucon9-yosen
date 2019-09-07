@@ -64,6 +64,8 @@ var (
 	templates *template.Template
 	dbx       *sqlx.DB
 	store     sessions.Store
+	categoriesCache [100]Category
+	parent2categoryIDCache map[int]([]int)
 )
 
 type Config struct {
@@ -324,6 +326,9 @@ func main() {
 	}
 	defer dbx.Close()
 
+	// カテゴリを配列にキャッシュする
+	CacheCategories()
+
 	mux := goji.NewMux()
 
 	// API
@@ -413,15 +418,12 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 }
 
 func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
-	err = sqlx.Get(q, &category, "SELECT * FROM `categories` WHERE `id` = ?", categoryID)
+	category = categoriesCache[categoryID];
 	if category.ParentID != 0 {
-		parentCategory, err := getCategoryByID(q, category.ParentID)
-		if err != nil {
-			return category, err
-		}
+		parentCategory, _ := getCategoryByID(q, category.ParentID)
 		category.ParentCategoryName = parentCategory.CategoryName
 	}
-	return category, err
+	return category, nil
 }
 
 func getConfigByName(name string) (string, error) {
@@ -505,6 +507,8 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(res)
+
+	CacheCategories()
 }
 
 func getNewItems(w http.ResponseWriter, r *http.Request) {
@@ -617,13 +621,7 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var categoryIDs []int
-	err = dbx.Select(&categoryIDs, "SELECT id FROM `categories` WHERE parent_id=?", rootCategory.ID)
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
+	categoryIDs := parent2categoryIDCache[rootCategory.ID]
 
 	query := r.URL.Query()
 	itemIDStr := query.Get("item_id")
@@ -2146,15 +2144,7 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 
 	ress.PaymentServiceURL = getPaymentServiceURL()
 
-	categories := []Category{}
-
-	err := dbx.Select(&categories, "SELECT * FROM `categories`")
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	ress.Categories = categories
+	ress.Categories = categoriesCache[:]
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(ress)
@@ -2308,4 +2298,24 @@ func outputErrorMsg(w http.ResponseWriter, status int, msg string) {
 
 func getImageURL(imageName string) string {
 	return fmt.Sprintf("/upload/%s", imageName)
+}
+
+
+// カテゴリを配列にキャッシュする
+func CacheCategories() {
+	var cs []Category
+	parent2categoryIDCache = make(map[int]([]int))
+	err := sqlx.Select(dbx, &cs, "SELECT * FROM `categories`")
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	for _, c := range(cs) {
+		categoriesCache[c.ID] = c
+
+		if _, ok := parent2categoryIDCache[c.ParentID]; !ok {
+			parent2categoryIDCache[c.ParentID] = make([]int, 0, 10)
+		}
+		parent2categoryIDCache[c.ParentID] = append(parent2categoryIDCache[c.ParentID], c.ID)
+	}
 }
