@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	crand "crypto/rand"
 	"database/sql"
 	"encoding/json"
@@ -2497,15 +2498,9 @@ func postLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword(u.HashedPassword, []byte(password))
-	if err == bcrypt.ErrMismatchedHashAndPassword {
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
+	if !bytes.Equal(u.HashedPassword, hashedPassword) {
 		outputErrorMsg(w, http.StatusUnauthorized, "アカウント名かパスワードが間違えています")
-		return
-	}
-	if err != nil {
-		log.Print(err)
-
-		outputErrorMsg(w, http.StatusInternalServerError, "crypt error")
 		return
 	}
 
