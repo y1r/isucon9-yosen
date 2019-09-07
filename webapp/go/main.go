@@ -61,10 +61,10 @@ const (
 )
 
 var (
-	templates *template.Template
-	dbx       *sqlx.DB
-	store     sessions.Store
-	categoriesCache [100]Category
+	templates              *template.Template
+	dbx                    *sqlx.DB
+	store                  sessions.Store
+	categoriesCache        [100]Category
 	parent2categoryIDCache map[int]([]int)
 )
 
@@ -418,7 +418,7 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 }
 
 func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
-	category = categoriesCache[categoryID];
+	category = categoriesCache[categoryID]
 	if category.ParentID != 0 {
 		parentCategory, _ := getCategoryByID(q, category.ParentID)
 		category.ParentCategoryName = parentCategory.CategoryName
@@ -871,10 +871,35 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := []Item{}
+	sellerMap := make(map[int64]UserSimple)
+	buyerMap := make(map[int64]UserSimple) // TODO
 	if itemID > 0 && createdAt > 0 {
 		// paging
 		err := dbx.Select(&items,
-			"SELECT * FROM `items` WHERE (`seller_id` = ? OR `buyer_id` = ?) AND `status` IN (?,?,?,?,?) AND (`created_at` < ?  OR (`created_at` <= ? AND `id` < ?)) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+			`
+				SELECT
+					*
+				FROM `+"`items`"+`
+				WHERE
+					(
+						`+"`seller_id`"+` = ?
+						OR
+						`+"`buyer_id`"+` = ?
+					)
+					AND
+						`+"`status`"+` IN (?,?,?,?,?)
+					AND (
+						`+"`created_at`"+` < ?
+						OR (
+							`+"`created_at`"+` <= ?
+							AND
+							`+"`id`"+` < ?
+						)
+					)
+				ORDER BY
+					`+"`created_at`"+` DESC
+					, `+"`id`"+` DESC LIMIT ?
+			`,
 			user.ID,
 			user.ID,
 			ItemStatusOnSale,
@@ -892,10 +917,151 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
 			return
 		}
+
+		sellers := []User{}
+		err = dbx.Select(&sellers,
+			`
+				SELECT
+					u.id AS id
+					, u.account_name AS account_name
+					, u.hashed_password AS hashed_password
+					, u.address AS address
+					, u.num_sell_items AS num_sell_items
+					, u.last_bump AS last_bump
+					, u.created_at AS created_at
+				FROM (
+					SELECT
+						seller_id
+					FROM `+"`items`"+`
+					WHERE
+						(
+							`+"`seller_id`"+` = ?
+							OR
+							`+"`buyer_id`"+` = ?
+						)
+						AND
+							`+"`status`"+` IN (?,?,?,?,?)
+						AND (
+							`+"`created_at`"+` < ?
+							OR (
+								`+"`created_at`"+` <= ?
+								AND
+								`+"`id`"+` < ?
+							)
+						)
+					ORDER BY
+						`+"`created_at`"+` DESC
+						, `+"`id`"+` DESC LIMIT ?
+				) AS i
+				INNER JOIN `+"`users`"+` AS u
+				ON i.seller_id = u.id
+			`,
+			user.ID,
+			user.ID,
+			ItemStatusOnSale,
+			ItemStatusTrading,
+			ItemStatusSoldOut,
+			ItemStatusCancel,
+			ItemStatusStop,
+			time.Unix(createdAt, 0),
+			time.Unix(createdAt, 0),
+			itemID,
+			TransactionsPerPage+1,
+		)
+		if err != nil {
+			log.Print(err)
+			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		for _, seller := range sellers {
+			sellerMap[seller.ID] = UserSimple{
+				ID:           user.ID,
+				AccountName:  user.AccountName,
+				NumSellItems: user.NumSellItems,
+			}
+		}
+
+		buyers := []User{}
+		err = dbx.Select(&buyers,
+			`
+				SELECT
+					u.id AS id
+					, u.account_name AS account_name
+					, u.hashed_password AS hashed_password
+					, u.address AS address
+					, u.num_sell_items AS num_sell_items
+					, u.last_bump AS last_bump
+					, u.created_at AS created_at
+				FROM (
+					SELECT
+						buyer_id
+					FROM `+"`items`"+`
+					WHERE
+						`+"`buyer_id`"+` > 0
+						AND
+						(
+							`+"`seller_id`"+` = ?
+							OR
+							`+"`buyer_id`"+` = ?
+						)
+						AND
+							`+"`status`"+` IN (?,?,?,?,?)
+						AND (
+							`+"`created_at`"+` < ?
+							OR (
+								`+"`created_at`"+` <= ?
+								AND
+								`+"`id`"+` < ?
+							)
+						)
+					ORDER BY
+						`+"`created_at`"+` DESC
+						, `+"`id`"+` DESC LIMIT ?
+				) AS i
+				INNER JOIN `+"`users`"+` AS u
+				ON i.buyer_id = u.id
+			`,
+			user.ID,
+			user.ID,
+			ItemStatusOnSale,
+			ItemStatusTrading,
+			ItemStatusSoldOut,
+			ItemStatusCancel,
+			ItemStatusStop,
+			time.Unix(createdAt, 0),
+			time.Unix(createdAt, 0),
+			itemID,
+			TransactionsPerPage+1,
+		)
+		if err != nil {
+			log.Print(err)
+			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		for _, buyer := range buyers {
+			buyerMap[buyer.ID] = UserSimple{
+				ID:           user.ID,
+				AccountName:  user.AccountName,
+				NumSellItems: user.NumSellItems,
+			}
+		}
 	} else {
 		// 1st page
 		err := dbx.Select(&items,
-			"SELECT * FROM `items` WHERE (`seller_id` = ? OR `buyer_id` = ?) AND `status` IN (?,?,?,?,?) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+			`
+				SELECT
+					*
+				FROM `+"`items`"+`
+				WHERE
+					(
+						`+"`seller_id`"+` = ?
+						OR `+"`buyer_id`"+` = ?
+					)
+					AND `+"`status`"+` IN (?,?,?,?,?)
+					ORDER BY
+						`+"`created_at`"+` DESC
+						, `+"`id`"+` DESC LIMIT ?
+			`,
 			user.ID,
 			user.ID,
 			ItemStatusOnSale,
@@ -910,15 +1076,113 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
 			return
 		}
+
+		sellers := []User{}
+		err = dbx.Select(&sellers,
+			`
+				SELECT
+					u.id AS id
+					, u.account_name AS account_name
+					, u.hashed_password AS hashed_password
+					, u.address AS address
+					, u.num_sell_items AS num_sell_items
+					, u.last_bump AS last_bump
+					, u.created_at AS created_at
+				FROM (
+					SELECT
+						seller_id
+					FROM `+"`items`"+`
+					WHERE
+						(
+							`+"`seller_id`"+` = ?
+							OR `+"`buyer_id`"+` = ?
+						)
+						AND `+"`status`"+` IN (?,?,?,?,?)
+						ORDER BY
+							`+"`created_at`"+` DESC
+							, `+"`id`"+` DESC LIMIT ?
+				) AS i
+				INNER JOIN `+"`users`"+` AS u
+				ON i.seller_id = u.id
+			`,
+			user.ID,
+			user.ID,
+			ItemStatusOnSale,
+			ItemStatusTrading,
+			ItemStatusSoldOut,
+			ItemStatusCancel,
+			ItemStatusStop,
+			TransactionsPerPage+1,
+		)
+		if err != nil {
+			log.Print(err)
+			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		for _, seller := range sellers {
+			sellerMap[seller.ID] = UserSimple{
+				ID:           user.ID,
+				AccountName:  user.AccountName,
+				NumSellItems: user.NumSellItems,
+			}
+		}
+
+		buyers := []User{}
+		err = dbx.Select(&buyers,
+			`
+				SELECT
+					u.id AS id
+					, u.account_name AS account_name
+					, u.hashed_password AS hashed_password
+					, u.address AS address
+					, u.num_sell_items AS num_sell_items
+					, u.last_bump AS last_bump
+					, u.created_at AS created_at
+				FROM (
+					SELECT
+						buyer_id
+					FROM `+"`items`"+`
+					WHERE
+						`+"`buyer_id`"+` > 0
+						AND
+						(
+							`+"`seller_id`"+` = ?
+							OR `+"`buyer_id`"+` = ?
+						)
+						AND `+"`status`"+` IN (?,?,?,?,?)
+						ORDER BY
+							`+"`created_at`"+` DESC
+							, `+"`id`"+` DESC LIMIT ?
+				) AS i
+				INNER JOIN `+"`users`"+` AS u
+				ON i.buyer_id = u.id
+			`,
+			user.ID,
+			user.ID,
+			ItemStatusOnSale,
+			ItemStatusTrading,
+			ItemStatusSoldOut,
+			ItemStatusCancel,
+			ItemStatusStop,
+			TransactionsPerPage+1,
+		)
+		if err != nil {
+			log.Print(err)
+			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		for _, buyer := range buyers {
+			buyerMap[buyer.ID] = UserSimple{
+				ID:           user.ID,
+				AccountName:  user.AccountName,
+				NumSellItems: user.NumSellItems,
+			}
+		}
 	}
 
 	itemDetails := []ItemDetail{}
 	for _, item := range items {
-		seller, err := getUserSimpleByID(dbx, item.SellerID)
-		if err != nil {
-			outputErrorMsg(w, http.StatusNotFound, "seller not found")
-			return
-		}
+		seller := sellerMap[item.SellerID]
 		category, err := getCategoryByID(dbx, item.CategoryID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "category not found")
@@ -945,11 +1209,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if item.BuyerID != 0 {
-			buyer, err := getUserSimpleByID(dbx, item.BuyerID)
-			if err != nil {
-				outputErrorMsg(w, http.StatusNotFound, "buyer not found")
-				return
-			}
+			buyer := buyerMap[item.BuyerID]
 			itemDetail.BuyerID = item.BuyerID
 			itemDetail.Buyer = &buyer
 		}
@@ -2300,7 +2560,6 @@ func getImageURL(imageName string) string {
 	return fmt.Sprintf("/upload/%s", imageName)
 }
 
-
 // カテゴリを配列にキャッシュする
 func CacheCategories() {
 	var cs []Category
@@ -2310,7 +2569,7 @@ func CacheCategories() {
 		log.Print(err)
 		return
 	}
-	for _, c := range(cs) {
+	for _, c := range cs {
 		categoriesCache[c.ID] = c
 
 		if _, ok := parent2categoryIDCache[c.ParentID]; !ok {
