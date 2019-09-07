@@ -730,8 +730,7 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// 1st page
-		err := sqlx.Select(
-			dbx,
+		err := dbx.Select(
 			&items,
 			`
 				SELECT
