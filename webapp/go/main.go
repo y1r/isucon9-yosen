@@ -638,12 +638,11 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	items := []Item{}
-	sellerMap := make(map[int64]UserSimple)
+	var inQuery string
+	var inArgs []interface{}
 	if itemID > 0 && createdAt > 0 {
 		// paging
-		err := dbx.Select(
-			&items,
+		inQuery, inArgs, err = sqlx.In(
 			`
 				SELECT
 					*
@@ -675,63 +674,9 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
 			return
 		}
-
-		sellers := []User{}
-		err = dbx.Select(&sellers,
-			`
-				SELECT
-					u.id AS id
-					, u.account_name AS account_name
-					, u.hashed_password AS hashed_password
-					, u.address AS address
-					, u.num_sell_items AS num_sell_items
-					, u.last_bump AS last_bump
-					, u.created_at AS created_at
-				FROM (
-					SELECT
-						*
-					FROM `+"`items`"+`
-					WHERE
-						`+"`status`"+` IN (?,?)
-						AND category_id IN (?)
-						AND (
-							`+"`created_at`"+` < ?
-							OR (
-								`+"`created_at`"+` <= ?
-								AND `+"`id`"+` < ?
-							)
-						)
-					ORDER BY
-						`+"`created_at`"+` DESC
-						, `+"`id`"+` DESC LIMIT ?
-				) AS i
-				INNER JOIN `+"`users`"+` AS u
-				ON i.seller_id = u.id
-			`,
-			ItemStatusOnSale,
-			ItemStatusSoldOut,
-			categoryIDs,
-			time.Unix(createdAt, 0),
-			time.Unix(createdAt, 0),
-			itemID,
-			ItemsPerPage+1,
-		)
-		if err != nil {
-			log.Print(err)
-			outputErrorMsg(w, http.StatusInternalServerError, "db error")
-			return
-		}
-		for _, seller := range sellers {
-			sellerMap[seller.ID] = UserSimple{
-				ID:           seller.ID,
-				AccountName:  seller.AccountName,
-				NumSellItems: seller.NumSellItems,
-			}
-		}
 	} else {
 		// 1st page
-		err := dbx.Select(
-			&items,
+		inQuery, inArgs, err = sqlx.In(
 			`
 				SELECT
 					*
@@ -754,56 +699,49 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
 			return
 		}
-
-		sellers := []User{}
-		err = dbx.Select(&sellers,
-			`
-				SELECT
-					u.id AS id
-					, u.account_name AS account_name
-					, u.hashed_password AS hashed_password
-					, u.address AS address
-					, u.num_sell_items AS num_sell_items
-					, u.last_bump AS last_bump
-					, u.created_at AS created_at
-				FROM (
-					SELECT
-						*
-					FROM
-						`+"`items`"+`
-					WHERE
-						`+"`status`"+` IN (?,?)
-						AND category_id IN (?)
-					ORDER BY
-						created_at DESC
-						, id DESC LIMIT ?
-				) AS i
-				INNER JOIN `+"`users`"+` AS u
-				ON i.seller_id = u.id
-			`,
-			ItemStatusOnSale,
-			ItemStatusSoldOut,
-			categoryIDs,
-			ItemsPerPage+1,
-		)
-		if err != nil {
-			log.Print(err)
-			outputErrorMsg(w, http.StatusInternalServerError, "db error")
-			return
-		}
-		for _, seller := range sellers {
-			sellerMap[seller.ID] = UserSimple{
-				ID:           seller.ID,
-				AccountName:  seller.AccountName,
-				NumSellItems: seller.NumSellItems,
-			}
-		}
 	}
+
+	items := []Item{}
+	err = dbx.Select(&items, inQuery, inArgs...)
 
 	if err != nil {
 		log.Print(err)
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		return
+	}
+
+	sellers := []User{}
+	err = dbx.Select(&sellers,
+		`
+			SELECT
+				u.id AS id
+				, u.account_name AS account_name
+				, u.hashed_password AS hashed_password
+				, u.address AS address
+				, u.num_sell_items AS num_sell_items
+				, u.last_bump AS last_bump
+				, u.created_at AS created_at
+			FROM (
+				`+inQuery+`
+			) AS i
+			INNER JOIN `+"`users`"+` AS u
+			ON i.seller_id = u.id
+		`,
+		inArgs...,
+	)
+	if err != nil {
+		log.Print(err)
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	sellerMap := make(map[int64]UserSimple)
+	for _, seller := range sellers {
+		sellerMap[seller.ID] = UserSimple{
+			ID:           seller.ID,
+			AccountName:  seller.AccountName,
+			NumSellItems: seller.NumSellItems,
+		}
 	}
 
 	itemSimples := []ItemSimple{}
