@@ -915,17 +915,17 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
 			return
 		}
-		sellers := []UserSimple{}
+		sellers := []User{}
 		err = dbx.Select(&sellers,
 			`
 				SELECT
-					u.id
-					, u.account_name
-					, u.hashed_password
-					, u.address
-					, u.num_sell_items
-					, u.last_bump
-					, u.created_at
+					u.id AS id
+					, u.account_name AS account_name
+					, u.hashed_password AS hashed_password
+					, u.address AS address
+					, u.num_sell_items AS num_sell_items
+					, u.last_bump AS last_bump
+					, u.created_at AS created_at
 				FROM (
 					`+selectItemsQuery+`
 				) AS i
@@ -950,7 +950,11 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, seller := range sellers {
-			sellerMap[seller.ID] = seller
+			sellerMap[seller.ID] = UserSimple{
+				ID:           user.ID,
+				AccountName:  user.AccountName,
+				NumSellItems: user.NumSellItems,
+			}
 		}
 	} else {
 		selectItemsQuery := `
@@ -984,17 +988,17 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
 			return
 		}
-		sellers := []UserSimple{}
+		sellers := []User{}
 		err = dbx.Select(&sellers,
 			`
 				SELECT
-					u.id
-					, u.account_name
-					, u.hashed_password
-					, u.address
-					, u.num_sell_items
-					, u.last_bump
-					, u.created_at
+					u.id AS id
+					, u.account_name AS account_name
+					, u.hashed_password AS hashed_password
+					, u.address AS address
+					, u.num_sell_items AS num_sell_items
+					, u.last_bump AS last_bump
+					, u.created_at AS created_at
 				FROM (
 					`+selectItemsQuery+`
 				) AS i
@@ -1016,7 +1020,11 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, seller := range sellers {
-			sellerMap[seller.ID] = seller
+			sellerMap[seller.ID] = UserSimple{
+				ID:           user.ID,
+				AccountName:  user.AccountName,
+				NumSellItems: user.NumSellItems,
+			}
 		}
 	}
 
