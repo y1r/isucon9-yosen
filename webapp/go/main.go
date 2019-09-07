@@ -66,9 +66,11 @@ var (
 	store                  sessions.Store
 	categoriesCache        [100]Category
 	parent2categoryIDCache map[int]([]int)
+	payment_service_url    string
+	shipment_service_url   string
 )
 
-type Config struct {
+type _Config struct {
 	Name string `json:"name" db:"name"`
 	Val  string `json:"val" db:"val"`
 }
@@ -426,16 +428,11 @@ func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err err
 }
 
 func getConfigByName(name string) (string, error) {
-	config := Config{}
-	err := dbx.Get(&config, "SELECT * FROM `configs` WHERE `name` = ?", name)
-	if err == sql.ErrNoRows {
-		return "", nil
+	if name[0] == 'p' {
+		return payment_service_url, nil
+	} else {
+		return shipment_service_url, nil
 	}
-	if err != nil {
-		log.Print(err)
-		return "", err
-	}
-	return config.Val, err
 }
 
 func getPaymentServiceURL() string {
@@ -496,6 +493,9 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		return
 	}
+
+	payment_service_url = ri.PaymentServiceURL
+	shipment_service_url = ri.ShipmentServiceURL
 
 	res := resInitialize{
 		// キャンペーン実施時には還元率の設定を返す。詳しくはマニュアルを参照のこと。
