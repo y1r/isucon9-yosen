@@ -2299,6 +2299,7 @@ func getImageURL(imageName string) string {
 // カテゴリを配列にキャッシュする
 func CacheCategories() {
 	var cs []Category
+	parent2categoryIDCache = make(map[int]([]int))
 	err := sqlx.Select(dbx, &cs, "SELECT * FROM `categories`")
 	if err != nil {
 		log.Print(err)
