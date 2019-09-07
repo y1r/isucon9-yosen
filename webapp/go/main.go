@@ -9,12 +9,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"time"
-	_ "net/http/pprof"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/sessions"
@@ -534,10 +534,27 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := []Item{}
+	sellerMap := make(map[int64]UserSimple)
 	if itemID > 0 && createdAt > 0 {
 		// paging
 		err := dbx.Select(&items,
-			"SELECT * FROM `items` WHERE `status` IN (?,?) AND (`created_at` < ?  OR (`created_at` <= ? AND `id` < ?)) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+			`
+				SELECT
+					*
+				FROM `+"`items`"+`
+				WHERE
+					`+"`status`"+` IN (?,?)
+					AND (
+						`+"`created_at`"+` < ?
+						OR (
+							`+"`created_at`"+` <= ?
+							AND `+"`id`"+` < ?
+						)
+					)
+				ORDER BY
+					`+"`created_at`"+` DESC
+					, `+"`id`"+` DESC LIMIT ?
+			`,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
 			time.Unix(createdAt, 0),
@@ -550,10 +567,70 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
 			return
 		}
+
+		sellers := []User{}
+		err = dbx.Select(&sellers,
+			`
+				SELECT
+					u.id AS id
+					, u.account_name AS account_name
+					, u.hashed_password AS hashed_password
+					, u.address AS address
+					, u.num_sell_items AS num_sell_items
+					, u.last_bump AS last_bump
+					, u.created_at AS created_at
+				FROM (
+					SELECT
+						*
+					FROM `+"`items`"+`
+					WHERE
+						`+"`status`"+` IN (?,?)
+						AND (
+							`+"`created_at`"+` < ?
+							OR (
+								`+"`created_at`"+` <= ?
+								AND `+"`id`"+` < ?
+							)
+						)
+					ORDER BY
+						`+"`created_at`"+` DESC
+						, `+"`id`"+` DESC LIMIT ?
+				) AS i
+				INNER JOIN `+"`users`"+` AS u
+				ON i.seller_id = u.id
+			`,
+			ItemStatusOnSale,
+			ItemStatusSoldOut,
+			time.Unix(createdAt, 0),
+			time.Unix(createdAt, 0),
+			itemID,
+			ItemsPerPage+1,
+		)
+		if err != nil {
+			log.Print(err)
+			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		for _, seller := range sellers {
+			sellerMap[seller.ID] = UserSimple{
+				ID:           seller.ID,
+				AccountName:  seller.AccountName,
+				NumSellItems: seller.NumSellItems,
+			}
+		}
 	} else {
 		// 1st page
 		err := dbx.Select(&items,
-			"SELECT * FROM `items` WHERE `status` IN (?,?) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+			`
+				SELECT
+					*
+				FROM `+"`items`"+`
+				WHERE
+					`+"`status`"+` IN (?,?)
+				ORDER BY
+					`+"`created_at`"+` DESC
+					, `+"`id`"+` DESC LIMIT ?
+			`,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
 			ItemsPerPage+1,
@@ -563,15 +640,55 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 			outputErrorMsg(w, http.StatusInternalServerError, "db error")
 			return
 		}
+
+		sellers := []User{}
+		err = dbx.Select(&sellers,
+			`
+				SELECT
+					u.id AS id
+					, u.account_name AS account_name
+					, u.hashed_password AS hashed_password
+					, u.address AS address
+					, u.num_sell_items AS num_sell_items
+					, u.last_bump AS last_bump
+					, u.created_at AS created_at
+				FROM (
+					SELECT
+						*
+					FROM `+"`items`"+`
+					WHERE
+						`+"`status`"+` IN (?,?)
+					ORDER BY
+						`+"`created_at`"+` DESC
+						, `+"`id`"+` DESC LIMIT ?
+				) AS i
+				INNER JOIN `+"`users`"+` AS u
+				ON i.seller_id = u.id
+			`,
+			ItemStatusOnSale,
+			ItemStatusSoldOut,
+			time.Unix(createdAt, 0),
+			time.Unix(createdAt, 0),
+			itemID,
+			ItemsPerPage+1,
+		)
+		if err != nil {
+			log.Print(err)
+			outputErrorMsg(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		for _, seller := range sellers {
+			sellerMap[seller.ID] = UserSimple{
+				ID:           seller.ID,
+				AccountName:  seller.AccountName,
+				NumSellItems: seller.NumSellItems,
+			}
+		}
 	}
 
 	itemSimples := []ItemSimple{}
 	for _, item := range items {
-		seller, err := getUserSimpleByID(dbx, item.SellerID)
-		if err != nil {
-			outputErrorMsg(w, http.StatusNotFound, "seller not found")
-			return
-		}
+		seller := sellerMap[item.SellerID]
 		category, err := getCategoryByID(dbx, item.CategoryID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "category not found")
