@@ -415,8 +415,7 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
 	category = categoriesCache[categoryID]
 	if category.ParentID != 0 {
-		parentCategory, _ := getCategoryByID(q, category.ParentID)
-		category.ParentCategoryName = parentCategory.CategoryName
+		category.ParentCategoryName = categoriesCache[category.ParentID].CategoryName
 	}
 	return category, nil
 }
@@ -1091,9 +1090,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, seller := range sellers {
 			sellerMap[seller.ID] = UserSimple{
-				ID:           user.ID,
-				AccountName:  user.AccountName,
-				NumSellItems: user.NumSellItems,
+				ID:           seller.ID,
+				AccountName:  seller.AccountName,
+				NumSellItems: seller.NumSellItems,
 			}
 		}
 
@@ -1156,9 +1155,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, buyer := range buyers {
 			buyerMap[buyer.ID] = UserSimple{
-				ID:           user.ID,
-				AccountName:  user.AccountName,
-				NumSellItems: user.NumSellItems,
+				ID:           buyer.ID,
+				AccountName:  buyer.AccountName,
+				NumSellItems: buyer.NumSellItems,
 			}
 		}
 	} else {
@@ -1237,9 +1236,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, seller := range sellers {
 			sellerMap[seller.ID] = UserSimple{
-				ID:           user.ID,
-				AccountName:  user.AccountName,
-				NumSellItems: user.NumSellItems,
+				ID:           seller.ID,
+				AccountName:  seller.AccountName,
+				NumSellItems: seller.NumSellItems,
 			}
 		}
 
@@ -1289,9 +1288,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, buyer := range buyers {
 			buyerMap[buyer.ID] = UserSimple{
-				ID:           user.ID,
-				AccountName:  user.AccountName,
-				NumSellItems: user.NumSellItems,
+				ID:           buyer.ID,
+				AccountName:  buyer.AccountName,
+				NumSellItems: buyer.NumSellItems,
 			}
 		}
 	}
