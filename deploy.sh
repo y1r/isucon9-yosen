@@ -14,8 +14,6 @@ sudo systemctl stop mysql.service
 pushd webapp/go
 git status
 
-echo make clean
-make clean
 echo make
 make
 
