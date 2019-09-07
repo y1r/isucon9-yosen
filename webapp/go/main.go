@@ -2139,9 +2139,7 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 
 	ress.PaymentServiceURL = getPaymentServiceURL()
 
-	categories := []Category{}
-
-	ress.Categories = categoriesCache[..]
+	ress.Categories = categoriesCache[:]
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(ress)
@@ -2301,7 +2299,7 @@ func getImageURL(imageName string) string {
 // カテゴリを配列にキャッシュする
 func CacheCategories() {
 	var cs []Category
-	err = sqlx.Select(dbx, &cs, "SELECT * FROM `categories`")
+	err := sqlx.Select(dbx, &cs, "SELECT * FROM `categories`")
 	if err != nil {
 		log.Print(err)
 		return
@@ -2310,7 +2308,7 @@ func CacheCategories() {
 		categoriesCache[c.ID] = c
 
 		if _, ok := parent2categoryIDCache[c.ParentID]; !ok {
-			parent2categoryIDCache[c.ParentID] = make([]int)
+			parent2categoryIDCache[c.ParentID] = make([]int, 0, 10)
 		}
 		parent2categoryIDCache[c.ParentID] = append(parent2categoryIDCache[c.ParentID], c.ID)
 	}
