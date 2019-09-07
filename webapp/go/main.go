@@ -64,6 +64,7 @@ var (
 	dbx       *sqlx.DB
 	store     sessions.Store
 	categoriesCache [100]Category
+	parent2categoryIDCache map[int]([]int)
 )
 
 type Config struct {
@@ -615,13 +616,7 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var categoryIDs []int
-	err = dbx.Select(&categoryIDs, "SELECT id FROM `categories` WHERE parent_id=?", rootCategory.ID)
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
+	categoryIDs := parent2categoryIDCache[rootCategory.ID]
 
 	query := r.URL.Query()
 	itemIDStr := query.Get("item_id")
@@ -2146,13 +2141,7 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 
 	categories := []Category{}
 
-	err := dbx.Select(&categories, "SELECT * FROM `categories`")
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	ress.Categories = categories
+	ress.Categories = categoriesCache[..]
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(ress)
@@ -2319,5 +2308,10 @@ func CacheCategories() {
 	}
 	for _, c := range(cs) {
 		categoriesCache[c.ID] = c
+
+		if _, ok := parent2categoryIDCache[c.ParentID]; !ok {
+			parent2categoryIDCache[c.ParentID] = make([]int)
+		}
+		parent2categoryIDCache[c.ParentID] = append(parent2categoryIDCache[c.ParentID], c.ID)
 	}
 }
