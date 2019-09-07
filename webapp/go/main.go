@@ -970,9 +970,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, seller := range sellers {
 			sellerMap[seller.ID] = UserSimple{
-				ID:           user.ID,
-				AccountName:  user.AccountName,
-				NumSellItems: user.NumSellItems,
+				ID:           seller.ID,
+				AccountName:  seller.AccountName,
+				NumSellItems: seller.NumSellItems,
 			}
 		}
 
@@ -1035,9 +1035,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, buyer := range buyers {
 			buyerMap[buyer.ID] = UserSimple{
-				ID:           user.ID,
-				AccountName:  user.AccountName,
-				NumSellItems: user.NumSellItems,
+				ID:           buyer.ID,
+				AccountName:  buyer.AccountName,
+				NumSellItems: buyer.NumSellItems,
 			}
 		}
 	} else {
@@ -1116,9 +1116,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, seller := range sellers {
 			sellerMap[seller.ID] = UserSimple{
-				ID:           user.ID,
-				AccountName:  user.AccountName,
-				NumSellItems: user.NumSellItems,
+				ID:           seller.ID,
+				AccountName:  seller.AccountName,
+				NumSellItems: seller.NumSellItems,
 			}
 		}
 
@@ -1168,9 +1168,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, buyer := range buyers {
 			buyerMap[buyer.ID] = UserSimple{
-				ID:           user.ID,
-				AccountName:  user.AccountName,
-				NumSellItems: user.NumSellItems,
+				ID:           buyer.ID,
+				AccountName:  buyer.AccountName,
+				NumSellItems: buyer.NumSellItems,
 			}
 		}
 	}
