@@ -63,6 +63,7 @@ var (
 	templates *template.Template
 	dbx       *sqlx.DB
 	store     sessions.Store
+	categoriesCache [100]Category
 )
 
 type Config struct {
@@ -319,6 +320,9 @@ func main() {
 	}
 	defer dbx.Close()
 
+	// カテゴリを配列にキャッシュする
+	CacheCategories()
+
 	mux := goji.NewMux()
 
 	// API
@@ -408,15 +412,12 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 }
 
 func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
-	err = sqlx.Get(q, &category, "SELECT * FROM `categories` WHERE `id` = ?", categoryID)
+	category = categoriesCache[categoryID];
 	if category.ParentID != 0 {
-		parentCategory, err := getCategoryByID(q, category.ParentID)
-		if err != nil {
-			return category, err
-		}
+		parentCategory, _ := getCategoryByID(q, category.ParentID)
 		category.ParentCategoryName = parentCategory.CategoryName
 	}
-	return category, err
+	return category, nil
 }
 
 func getConfigByName(name string) (string, error) {
@@ -500,6 +501,8 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(res)
+
+	CacheCategories()
 }
 
 func getNewItems(w http.ResponseWriter, r *http.Request) {
@@ -2303,4 +2306,18 @@ func outputErrorMsg(w http.ResponseWriter, status int, msg string) {
 
 func getImageURL(imageName string) string {
 	return fmt.Sprintf("/upload/%s", imageName)
+}
+
+
+// カテゴリを配列にキャッシュする
+func CacheCategories() {
+	var cs []Category
+	err = sqlx.Select(dbx, &cs, "SELECT * FROM `categories`")
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	for _, c := range(cs) {
+		categoriesCache[c.ID] = c
+	}
 }
