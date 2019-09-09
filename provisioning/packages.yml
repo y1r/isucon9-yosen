@@ -8,4 +8,4 @@
         - htop
         - vnstat
         - bash-completion
-        - redis-server
+          #- redis-server
